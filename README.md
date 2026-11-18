@@ -1,4 +1,5 @@
-# Manage your robot from gesture fingers in ROS2 simulation
+# Manage your robot from gesture fingers in ROS2 Gazebo simulation
+## Soon i will add information with my real robot in ESP32
 A decoupled two-node ROS 2 system for controlling a mobile robot in Gazebo using real-time webcam hand gesture recognition via OpenCV and MediaPipe.
 
 ## 1. Abstract
@@ -6,6 +7,7 @@ A decoupled two-node ROS 2 system for controlling a mobile robot in Gazebo using
 This report documents the design, implementation, and verification of a vision-based teleoperation system for a mobile robot simulated in Gazebo using ROS 2 (Jazzy). To achieve modularity and separation of concerns, the control pipeline is decoupled into two independent ROS 2 nodes within the robot_vision_pkg package: a perception node (camera_gesture_node) responsible for real-time computer vision and hand landmark extraction, and an actuation control node (robot_controller_node) responsible for translating discrete gesture states into stamped velocity commands (/cmd_vel) with custom inverted directional mapping.
 
 ![Hand Tracking Landmarks](https://github.com/LOGAN3000GTX/Manage-robot-from-gesture-fingers-in-ROS2-/blob/main/Node%201%3A%20Camera%20View_screenshot_18.11.2026.png)
+![Hand Tracking Landmarks](https://github.com/LOGAN3000GTX/Manage-robot-from-gesture-fingers-in-ROS2-/blob/main/Webcam%20Gesture%20Control_screenshot_16.11.2026.png)
 
 
 ## System Architecture
