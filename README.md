@@ -18,8 +18,6 @@ The project is split into two independent ROS 2 nodes (`robot_vision_pkg`) commu
    - Subscribes to `/finger_count`.
    - Maps the detected finger count into velocity commands (`geometry_msgs/TwistStamped`) using custom inverted movement logic.
    - Publishes velocity commands to `/cmd_vel` to drive the mobile robot in Gazebo.
-  ```text
-[Webcam] ──> [camera_gesture_node] ──(/finger_count)──> [robot_controller_node] ──(/cmd_vel)──> [Gazebo Robot]
 
 ### Node Breakdown
 1. **Perception Node (`camera_gesture_node` / executable: `camera_node`)**
