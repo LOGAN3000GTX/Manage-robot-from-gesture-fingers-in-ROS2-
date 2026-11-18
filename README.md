@@ -111,3 +111,98 @@ source install/setup.bash
 ### 6.3 System Verification
 - **Visual Feedback:** The OpenCV window (`Node 1: Camera View`) displays real-time skeletal tracking dots and updates `Fingers detected: N` accurately for counts `0` through `5`.
 - **Topic & Graph Inspection:** Running `rqt_graph` or `ros2 topic echo /cmd_vel` confirms that `/camera_gesture_node` publishes to `/finger_count`, `/robot_controller_node` translates those integers into the corresponding `linear.x` and `angular.z` velocities, and the Gazebo robot responds immediately with inverted longitudinal control.
+
+
+## Code Explanation
+
+The codebase is organized into two Python nodes inside `robot_vision_pkg`. Below is a breakdown of the core logic in each file.
+
+---
+
+### 1. Perception Node (`camera_gesture_node.py`)
+
+This node captures video frames from the webcam, detects hand landmarks using MediaPipe, counts raised fingers, and publishes the count to `/finger_count`.
+
+#### Initialization & ROS 2 Publisher
+```python
+self.gesture_pub = self.create_publisher(Int32, '/finger_count', 10)
+self.cap = cv2.VideoCapture(0)
+self.hands = self.mp_hands.Hands(
+    max_num_hands=1,
+    min_detection_confidence=0.6,
+    min_tracking_confidence=0.6
+)
+self.timer = self.create_timer(0.1, self.timer_callback)
+```
+* **`create_publisher`**: Sets up the `/finger_count` topic using standard integer messages (`std_msgs/Int32`) with a queue size of `10`.
+* **`VideoCapture(0)`**: Opens the default system webcam.
+* **`mp_hands.Hands(...)`**: Initializes MediaPipe to track a single hand with a 60% confidence threshold for stable real-time detection.
+* **`create_timer(0.1, ...)`**: Executes `timer_callback` every `0.1` seconds (10 Hz).
+
+#### Finger Counting Logic (`count_fingers`)
+```python
+tips = [8, 12, 16, 20]
+count = 0
+for tip in tips:
+    if hand_landmarks.landmark[tip].y < hand_landmarks.landmark[tip - 2].y:
+        count += 1
+
+if abs(hand_landmarks.landmark[4].x - hand_landmarks.landmark[17].x) > \
+   abs(hand_landmarks.landmark[3].x - hand_landmarks.landmark[17].x):
+    count += 1
+```
+* **Four Main Fingers (`8, 12, 16, 20`)**: Compares the vertical `y`-coordinate of each fingertip against its middle joint (`tip - 2`). Because OpenCV's image origin `(0,0)` is at the top-left corner, a smaller `y` value means the finger is raised higher.
+* **Thumb (`4`)**: Because the thumb moves horizontally rather than vertically, the code measures the horizontal (`x`-axis) distance between the thumb tip (`4`) and the base of the pinky (`17`), comparing it against the thumb's inner joint (`3`).
+
+#### Frame Processing & Visual Debugging (`timer_callback`)
+```python
+frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+results = self.hands.process(frame_rgb)
+```
+* **Color Conversion**: OpenCV captures images in **BGR** format, while MediaPipe requires **RGB**, so `cvtColor` converts the frame before inference.
+* **Skeleton Overlay**: When a hand is detected, `mp_draw.draw_landmarks(...)` draws the 21 joint nodes and connecting lines onto the BGR `frame`, `cv2.putText` prints the finger count in the corner, and `self.gesture_pub.publish(finger_msg)` sends the integer to Node 2.
+
+---
+
+### 2. Control Node (`robot_controller_node.py`)
+
+This node listens to `/finger_count` and converts the detected finger count into velocity commands (`TwistStamped`) for the Gazebo robot.
+
+#### Subscriber & Velocity Publisher
+```python
+self.subscription = self.create_subscription(
+    Int32,
+    '/finger_count',
+    self.gesture_callback,
+    10
+)
+self.cmd_pub = self.create_publisher(TwistStamped, '/cmd_vel', 10)
+```
+* **`create_subscription`**: Triggers `gesture_callback` every time a new integer arrives on `/finger_count`.
+* **`cmd_pub`**: Publishes `geometry_msgs/TwistStamped` messages to `/cmd_vel`, which drives the differential-drive plugin in Gazebo.
+
+#### Inverted Kinematic Mapping (`gesture_callback`)
+```python
+twist_msg = TwistStamped()
+twist_msg.header.stamp = self.get_clock().now().to_msg()
+
+if fingers == 1:
+    twist_msg.twist.linear.x = -0.22  # Backward
+elif fingers == 2:
+    twist_msg.twist.linear.x = 0.22   # Forward
+elif fingers == 3:
+    twist_msg.twist.angular.z = -0.5  # Turn Right
+elif fingers == 4:
+    twist_msg.twist.angular.z = 0.5   # Turn Left
+elif fingers == 5:
+    twist_msg.twist.linear.x = 0.65   # Turbo Forward
+else:
+    twist_msg.twist.linear.x = 0.0    # Stop
+    twist_msg.twist.angular.z = 0.0
+
+self.cmd_pub.publish(twist_msg)
+```
+* **Timestamping**: `self.get_clock().now().to_msg()` attaches the current ROS 2 simulation/system timestamp to the message header.
+* **Linear Velocity (`linear.x`)**: Controls forward (`+`) and backward (`-`) movement in meters per second ($\text{m/s}$). Here, `1` finger is inverted to `-0.22 m/s` (reverse) and `2` fingers to `+0.22 m/s` (forward).
+* **Angular Velocity (`angular.z`)**: Controls rotation around the vertical Z-axis in radians per second ($\text{rad/s}$), where negative values rotate clockwise (right) and positive values rotate counter-clockwise (left).
+* **Failsafe Stop (`else`)**: If `0` fingers are shown (a closed fist) or no hand is visible in the frame, both velocities are set to `0.0` to immediately halt the robot.
