@@ -5,6 +5,8 @@ A decoupled two-node ROS 2 system for controlling a mobile robot in Gazebo using
 
 This report documents the design, implementation, and verification of a vision-based teleoperation system for a mobile robot simulated in Gazebo using ROS 2 (Jazzy). To achieve modularity and separation of concerns, the control pipeline is decoupled into two independent ROS 2 nodes within the robot_vision_pkg package: a perception node (camera_gesture_node) responsible for real-time computer vision and hand landmark extraction, and an actuation control node (robot_controller_node) responsible for translating discrete gesture states into stamped velocity commands (/cmd_vel) with custom inverted directional mapping.
 
+![Hand Tracking Landmarks](https://)
+
 
 ## System Architecture
 The project is split into two independent ROS 2 nodes (`robot_vision_pkg`) communicating over a custom topic pipeline:
